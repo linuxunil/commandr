@@ -6,11 +6,14 @@ import (
 	"strings"
 )
 
+type BaseCommand struct {
+	Name        string
+	Description string
+	Aliases     []string
+}
+
 type Command[T any] interface {
-	Name() string
 	Run(ctx context.Context, state *T, args []string) (string, error)
-	Description() string
-	Aliases() []string
 }
 
 // Registery of Commands available
