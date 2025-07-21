@@ -1,0 +1,42 @@
+[tools]
+go = "1.24.4"
+
+[tasks.test]
+run = "go test ./..."
+description = "Run all tests"
+
+[tasks.test-verbose]
+run = "go test -v ./..."
+description = "Run tests with verbose output"
+
+[tasks.test-cover]
+run = "go test -cover ./..."
+description = "Run tests with coverage"
+
+[tasks.bench]
+run = "go test -bench=."
+description = "Run benchmarks"
+
+[tasks.fmt]
+run = "go fmt ./..."
+description = "Format Go code"
+
+[tasks.vet]
+run = "go vet ./..."
+description = "Vet Go code"
+
+[tasks.mod-tidy]
+run = "go mod tidy"
+description = "Tidy Go modules"
+
+[tasks.doc]
+run = "go doc"
+description = "Show package documentation"
+
+[tasks.clean]
+run = "go clean"
+description = "Clean build cache"
+
+[tasks.check]
+depends = ["fmt", "vet", "test"]
+description = "Run format, vet, and test"
