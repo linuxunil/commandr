@@ -11,36 +11,43 @@ func tokenizeInput(text string) []string {
 	return fields
 }
 
-// Stores information about the command
-type commandMetaData struct {
+// Commands with a callback and optional args.
+type command[T any] struct {
 	name        string
 	description string
+	callback    func(conf *T, opt ...[]string) error
 }
 
-// Commands with a callback and optional args.
-type Command[T any] struct {
-	meta     commandMetaData
-	args     []string
-	callback func(conf *T, opt ...[]string) error
-}
-
-// Registry of Commands available
+// Registery of Commands available
 // Add new Commands with the register function
 type Commands[T any] struct {
-	registered map[string]func(*T, Command[T]) error
+	registered map[string]command[T]
 }
 
-func (c *Commands[T]) Add(name string, f func(*T, Command[T]) error) {
-	c.registered[name] = f
+// Register a command with the registery.
+func (c *Commands[T]) Add(name string, callback func(conf *T, opt ...[]string) error, description ...string) {
+	cmd := command[T]{name: name, callback: callback}
+
+	if len(description) > 0 {
+		cmd.description = strings.Join(description, " ")
+	}
+	c.registered[strings.ToLower(name)] = cmd
 }
 
 // Look up and execute a command.
-func (c *Commands[T]) Execute(st *T, cmd Command[T]) error {
-	com, ok := c.registered[cmd.meta.name]
-	if !ok {
-		return fmt.Errorf("Command %v does not exist", cmd.meta.name)
+func (reg *Commands[T]) Execute(st *T, input string) error {
+	tokens := tokenizeInput(input)
+	if len(tokens) == 0 {
+		return fmt.Errorf("No command provided")
 	}
-	if err := com(st, cmd); err != nil {
+
+	cmdToken, args := strings.ToLower(tokens[0]), tokens[1:]
+
+	cmd, ok := reg.registered[cmdToken]
+	if !ok {
+		return fmt.Errorf("Command %v does not exist", cmdToken)
+	}
+	if err := cmd.callback(st, args); err != nil {
 		return err
 	}
 	return nil
@@ -48,7 +55,7 @@ func (c *Commands[T]) Execute(st *T, cmd Command[T]) error {
 
 func New[T any]() *Commands[T] {
 	return &Commands[T]{
-		registered: make(map[string]func(*T, Command[T]) error),
+		registered: make(map[string]command[T]),
 	}
 }
 
@@ -72,4 +79,3 @@ func New[T any]() *Commands[T] {
 //
 // 	return c.run(state, cmd)
 // }
-

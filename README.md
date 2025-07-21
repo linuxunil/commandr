@@ -33,7 +33,7 @@ type AppState struct {
 }
 
 // Create command handlers
-func loginHandler(state *AppState, args []string) error {
+func loginHandler(state *AppState, args ...[]string) error {
     if len(args) < 1 {
         return fmt.Errorf("username required")
     }
@@ -43,7 +43,7 @@ func loginHandler(state *AppState, args []string) error {
     return nil
 }
 
-func statusHandler(state *AppState, args []string) error {
+func statusHandler(state *AppState, args ...[]string) error {
     if state.loggedIn {
         fmt.Printf("Logged in as %s\n", state.username)
     } else {
@@ -58,8 +58,8 @@ func main() {
     cmdr := commandr.New[AppState]()
     
     // Register commands
-    cmdr.Register("login", loginHandler)
-    cmdr.Register("status", statusHandler)
+    cmdr.Add("login", loginHandler, "Log in with username")
+    cmdr.Add("status", statusHandler, "Show login status")
     
     // Execute commands
     if err := cmdr.Execute(state, "login alice"); err != nil {
@@ -83,7 +83,7 @@ cmdr := commandr.New[YourStateType]()
 ### Registering Commands
 
 ```go
-cmdr.Register(name string, handler func(*YourStateType, []string) error)
+cmdr.Add(name string, callback func(*YourStateType, ...[]string) error, description ...string)
 ```
 
 ### Executing Commands
@@ -101,15 +101,16 @@ Commands are parsed from strings with the following format:
 
 Examples:
 - `"login alice"` → command: "login", args: ["alice"]
-- `"move north quickly"` → command: "move", args: ["north", "quickly"]
+- `"move north quickly"` → command: "move", args: ["north", "quickly"]  
 - `"  LOOK  "` → command: "look", args: []
+- `"LOGIN Bob"` → command: "login", args: ["Bob"] (case-insensitive)
 
 ## Error Handling
 
 Commands should return errors for invalid input or execution failures:
 
 ```go
-func myHandler(state *MyState, args []string) error {
+func myHandler(state *MyState, args ...[]string) error {
     if len(args) < 2 {
         return fmt.Errorf("expected 2 arguments, got %d", len(args))
     }
