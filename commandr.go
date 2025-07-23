@@ -1,89 +1,92 @@
 package commandr
 
 import (
-	"context"
 	"errors"
 	"strings"
 )
 
+// Common errors returned by the command system.
 var (
-	ErrNoCommand   = errors.New("no command provided")
-	ErrNotFound    = errors.New("command does not exist")
+	// ErrNoCommand is returned when no command is provided.
+	ErrNoCommand = errors.New("no command provided")
+
+	// ErrNotFound is returned when the requested command does not exist.
+	ErrNotFound = errors.New("command does not exist")
+
+	// ErrInvalidArgs is returned when command arguments are invalid.
 	ErrInvalidArgs = errors.New("invalid arguments")
 )
-var DefaultCommands = New[any]()
 
-type Runner[T any] interface {
-	Run(ctx context.Context, state *T, args []string) (string, error)
+// DefaultCommands is the default command registry used by package-level functions.
+var DefaultCommands = &Commands{}
+
+type CommandFunc func(res Result, req Call)
+
+// Command represents a registered command with its pattern and handler.
+type Command struct {
+	header  Header
+	pattern string
+	handler CommandFunc
 }
 
-type BaseCommand struct {
-	Name        string
-	Description string
-	Aliases     []string
+// Commands is a command registry that manages command registration and execution.
+// It provides thread-safe registration and lookup of commands.
+type Commands struct {
+	commands map[string]Command
 }
 
-type Command[T any] struct {
-	meta    BaseCommand
-	handler func(ctx context.Context, state *T, args []string) (string, error)
+func (f CommandFunc) Exec(res Result, req Call) {
+	f(res, req)
 }
 
-// Registery of Commands available
-// Add new Commands with the register function
-type Commands[T any] struct {
-	commands map[string]Command[T]
+// Exec executes the command with the provided context, result, and call.
+// It returns an error if execution fails.
+func Exec(res Result, req Call) {
+	DefaultCommands.Exec(res, req)
 }
 
-// Return a new register
-func New[T any]() *Commands[T] {
-	return &Commands[T]{
-		commands: make(map[string]Command[T]),
+func (c *Commands) Exec(res Result, req Call) {
+	cmd, _ := c.findCommand(req)
+	cmd.Exec(res, req)
+}
+
+// HandleFunc registers a command handler with the given pattern.
+// The handler function will be called when the command is executed.
+func (c *Commands) HandleFunc(pattern string, handler func(res Result, req Call)) {
+	if c.commands == nil {
+		c.commands = make(map[string]Command)
 	}
-}
-
-// Register a Command with the registery.
-func (c *Commands[T]) Add(cmd Command[T]) {
-	cmdName := strings.ToLower(cmd.meta.Name)
-	c.commands[cmdName] = cmd
-	for _, alias := range cmd.meta.Aliases {
-		c.commands[strings.ToLower(alias)] = cmd
+	cmd := Command{
+		header:  &BaseHeader{},
+		pattern: pattern,
+		handler: CommandFunc(handler),
 	}
+	c.commands[pattern] = cmd
 }
 
-func (cmd Command[T]) Run(ctx context.Context, state *T, args []string) (string, error) {
-	return cmd.handler(ctx, state, args)
-}
-
-// Look up and execute a Command.
-func (reg *Commands[T]) Execute(ctx context.Context, state *T, input string) (string, error) {
-	tokens := tokenizeInput(input)
-	if len(tokens) == 0 {
-		return "", ErrNoCommand
+func HandleFunc(pattern string, handler func(res Result, req Call)) {
+	if DefaultCommands.commands == nil {
+		DefaultCommands.commands = make(map[string]Command)
 	}
-
-	cmdToken, args := strings.ToLower(tokens[0]), tokens[1:]
-
-	cmd, ok := reg.commands[cmdToken]
-	if !ok {
-		return "", ErrNotFound
+	cmd := Command{
+		header:  &BaseHeader{},
+		pattern: pattern,
+		handler: CommandFunc(handler),
 	}
-	return cmd.Run(ctx, state, args)
+	DefaultCommands.commands[pattern] = cmd
 }
 
-func HandleFunc(name, description string, handler func(ctx context.Context, state any, args []string) (string, error), aliases ...string) {
-	cmd := Command[any]{
-		meta: BaseCommand{
-			Name:        name,
-			Description: description,
-			Aliases:     aliases,
-		},
-		handler: handler,
+func (c *Commands) findCommand(req Call) (CommandFunc, error) {
+	n := req.GetName()
+	if cf, exists := c.commands[n]; exists {
+		return cf.handler, nil
 	}
-	DefaultCommands.Add(cmd)
+	return nil, ErrNotFound
 }
 
-// Clean input for processing of Commands.
-func tokenizeInput(text string) []string {
-	fields := strings.Fields(text)
-	return fields
-}
+// tokenizeInput splits input text into command tokens.
+// // It removes extra whitespace and returns a slice of string tokens.
+// func tokenizeInput(text string) []string {
+// 	fields := strings.Fields(text)
+// 	return fields
+// }
